@@ -513,5 +513,7 @@ if __name__ == '__main__':
     with app.app_context():
         db.create_all()
         setup_app()  # Run setup tasks
-        
-    app.run(debug=True, host='0.0.0.0', port=5001) 
+    
+    # Use environment variable for port, defaulting to 5001 if not set
+    port = int(os.environ.get("PORT", 5001))
+    app.run(debug=False, host='0.0.0.0', port=port) 

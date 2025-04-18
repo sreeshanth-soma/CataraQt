@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: cataract-detection
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: python app.py
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.8.12
+      - key: PORT
+        value: 10000

@@ -1,0 +1,11 @@
+[build]
+  command = "pip install -r requirements.txt"
+  publish = "static"
+
+[build.environment]
+  PYTHON_VERSION = "3.8"
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200 

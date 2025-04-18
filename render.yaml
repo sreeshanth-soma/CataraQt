@@ -9,3 +9,7 @@ services:
         value: 3.8.12
       - key: PORT
         value: 10000
+      - key: SECRET_KEY
+        generateValue: true
+      - key: FLASK_ENV
+        value: production

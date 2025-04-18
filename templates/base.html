@@ -767,6 +767,9 @@
     <!-- Dark mode script -->
     <script>
       document.addEventListener("DOMContentLoaded", function () {
+        // Set initial flag to prevent unnecessary server sync on page load
+        window.initialThemeLoad = true;
+
         // Get theme preference from localStorage or system preference
         function getThemePreference() {
           const savedTheme = localStorage.getItem("theme");
@@ -791,17 +794,39 @@
 
         // Sync theme with server
         function syncThemeWithServer(theme) {
+          // Skip server sync on initial page load to avoid unnecessary requests
+          if (window.initialThemeLoad) {
+            window.initialThemeLoad = false;
+            return;
+          }
+
           fetch("/set-theme", {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
             },
             body: JSON.stringify({ theme: theme }),
-          }).catch((error) => console.error("Error syncing theme:", error));
+          })
+            .then((response) => {
+              if (!response.ok) {
+                console.log(
+                  "Theme sync response not OK, falling back to client-side only"
+                );
+              }
+              return response.json().catch(() => ({}));
+            })
+            .catch((error) => {
+              console.log(
+                "Error syncing theme, using client-side only:",
+                error
+              );
+              // Still apply theme locally even if server sync fails
+              applyThemeToDOM(theme);
+            });
         }
 
-        // Apply theme to HTML and document elements
-        function setTheme(theme) {
+        // DOM manipulation for theme (extracted to separate function)
+        function applyThemeToDOM(theme) {
           if (theme === "dark") {
             document.documentElement.classList.add("dark");
             document.body.classList.add("dark");
@@ -813,9 +838,21 @@
             document.getElementById("sun-icon").classList.add("hidden");
             document.getElementById("moon-icon").classList.remove("hidden");
           }
+        }
+
+        // Apply theme to HTML and document elements
+        function setTheme(theme) {
+          // Apply DOM changes
+          applyThemeToDOM(theme);
+
+          // Store in local storage
           localStorage.setItem("theme", theme);
+
+          // Store in cookie for server-side rendering
           setCookie("theme", theme, 365); // Store in cookie for 1 year
-          syncThemeWithServer(theme); // Sync with server
+
+          // Try to sync with server, but don't block on it
+          syncThemeWithServer(theme);
         }
 
         // Initialize theme

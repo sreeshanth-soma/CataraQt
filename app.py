@@ -23,7 +23,7 @@ app.config['UPLOAD_FOLDER'] = os.path.join(basedir, 'static/uploads')
 # --- End Absolute Path --- #
 
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
-app.config['SECRET_KEY'] = os.urandom(24)  # For session management
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', os.urandom(24))  # Use env var if available
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=7)  # Session lifetime
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///users.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
@@ -477,13 +477,34 @@ def hospitals():
 
 @app.route('/set-theme', methods=['POST'])
 def set_theme():
-    theme = request.json.get('theme')
-    if theme in ['light', 'dark']:
-        session['theme'] = theme
-        response = jsonify({'success': True})
-        response.set_cookie('theme', theme, max_age=31536000)  # 1 year
-        return response
-    return jsonify({'success': False, 'error': 'Invalid theme'}), 400
+    try:
+        # Try to get JSON data
+        if request.is_json:
+            theme = request.json.get('theme')
+        else:
+            # Try to get form data if not JSON
+            theme = request.form.get('theme')
+            
+        if not theme:
+            # Try to get from query params as last resort
+            theme = request.args.get('theme')
+            
+        if theme in ['light', 'dark']:
+            # Store in session if available
+            try:
+                session['theme'] = theme
+            except Exception as e:
+                app.logger.error(f"Session error: {str(e)}")
+                
+            # Return response with cookie
+            response = jsonify({'success': True, 'theme': theme})
+            response.set_cookie('theme', theme, max_age=31536000, samesite='Lax', secure=False)
+            return response
+            
+        return jsonify({'success': False, 'error': 'Invalid theme'}), 400
+    except Exception as e:
+        app.logger.error(f"Theme setting error: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 # Create default profile picture if it doesn't exist
 def create_default_profile_picture():

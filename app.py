@@ -25,7 +25,15 @@ app.config['UPLOAD_FOLDER'] = os.path.join(basedir, 'static/uploads')
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', os.urandom(24))  # Use env var if available
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=7)  # Session lifetime
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///users.db'
+
+# Database configuration - use PostgreSQL on Render, SQLite locally
+if os.environ.get('DATABASE_URL'):
+    # PostgreSQL database URL from Render
+    app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL')
+else:
+    # SQLite for local development
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///users.db'
+
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # --- Ensure upload folder exists --- #
@@ -140,27 +148,49 @@ def technology_details():
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    if 'user_id' in session:
-        return redirect(url_for('dashboard'))
-        
-    if request.method == 'POST':
-        username = request.form.get('username')
-        password = request.form.get('password')
-        
-        user = User.query.filter_by(username=username).first()
-        if user and check_password_hash(user.password, password):
-            session.permanent = True
-            session['user_id'] = user.id
-            session['username'] = user.username
-            session['user_name'] = user.name
-            if user.profile_picture:
-                session['user_profile_picture'] = user.profile_picture
-            flash('Logged in successfully!', 'success')
+    try:
+        if 'user_id' in session:
             return redirect(url_for('dashboard'))
-        else:
-            flash('Invalid username or password', 'error')
-    
-    return render_template('auth/login.html', active_page='login')
+            
+        if request.method == 'POST':
+            try:
+                username = request.form.get('username')
+                password = request.form.get('password')
+                
+                if not username or not password:
+                    flash('Please provide both username and password', 'error')
+                    return render_template('auth/login.html', active_page='login')
+                
+                user = User.query.filter_by(username=username).first()
+                
+                if user and check_password_hash(user.password, password):
+                    try:
+                        # Set up permanent session
+                        session.permanent = True
+                        session['user_id'] = user.id
+                        session['username'] = user.username
+                        session['user_name'] = user.name
+                        if user.profile_picture:
+                            session['user_profile_picture'] = user.profile_picture
+                        
+                        app.logger.info(f"User {username} logged in successfully")
+                        flash('Logged in successfully!', 'success')
+                        return redirect(url_for('dashboard'))
+                    except Exception as session_error:
+                        app.logger.error(f"Session error during login: {str(session_error)}")
+                        flash('Session error during login. Please try again.', 'error')
+                else:
+                    app.logger.warning(f"Failed login attempt for user: {username}")
+                    flash('Invalid username or password', 'error')
+            except Exception as form_error:
+                app.logger.error(f"Form processing error: {str(form_error)}")
+                flash('Error processing login. Please try again.', 'error')
+        
+        return render_template('auth/login.html', active_page='login')
+    except Exception as e:
+        app.logger.error(f"Unexpected error in login route: {str(e)}")
+        flash('An unexpected error occurred. Please try again.', 'error')
+        return render_template('auth/login.html', active_page='login')
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
@@ -229,126 +259,149 @@ def dashboard():
 @login_required
 def analyze_image():
     if request.method == 'POST':
-        if 'file' not in request.files:
-            return jsonify({'error': 'No file uploaded'}), 400
-        
-        file = request.files['file']
-        if file.filename == '':
-            return jsonify({'error': 'No file selected'}), 400
-        
-        if file and allowed_file(file.filename):
-            filename = secure_filename(file.filename)
-            filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-            file.save(filepath)
+        try:
+            if 'file' not in request.files:
+                flash('No file uploaded', 'error')
+                return redirect(request.url)
             
-            try:
-                # --- Preprocessing uses corrected transform --- #
-                image_pil = Image.open(filepath).convert('RGB') 
-                img_tensor = transform(image_pil)
-                img_tensor = img_tensor.unsqueeze(0)
-                # --- End Preprocessing --- #
-
-                # Make prediction
-                with torch.no_grad():
-                    prediction_tensor = model(img_tensor) 
-                    raw_confidence = float(prediction_tensor[0][0]) # Model's raw output (0..1)
-                    
-                    # Print debug info about confidence levels
-                    print(f"DEBUG: Raw confidence value for cataract: {raw_confidence}", file=sys.stderr)
-                    
-                    # Set threshold to 40% (0.4) for cataract detection
-                    cataract_threshold = 0.4
-                    result = "Cataract Detected" if raw_confidence > cataract_threshold else "No Cataract Detected"
-                    print(f"DEBUG: Final prediction: {result} (threshold={cataract_threshold})", file=sys.stderr)
-                    
-                    # Store raw confidence - higher means more likely cataract
-                    cataract_likelihood = raw_confidence
-                
-                # Save analysis to history - Store the calculated cataract likelihood
-                analysis = Analysis(
-                    user_id=session['user_id'],
-                    image_path=filename, 
-                    prediction=result,
-                    confidence=cataract_likelihood # Store likelihood of cataract
-                )
-                db.session.add(analysis)
-                db.session.commit()
-                
-                # Get recommendations based on prediction and cataract likelihood
-                recommendations, recommended_hospitals = get_recommendations(result, cataract_likelihood)
-                
-                # --- Restore Visualizations (Attempt) --- # 
-                # Need original image as numpy array for cv2 operations
-                # Convert PIL image used for transform back to numpy (or reload with cv2)
-                img_cv_rgb = cv2.cvtColor(np.array(image_pil), cv2.COLOR_RGB2BGR)
-                img_display_resized = cv2.resize(img_cv_rgb, (224, 224)) # Ensure consistent size
-
-                # Edge detection on the resized display image
-                img_gray = cv2.cvtColor(img_display_resized, cv2.COLOR_BGR2GRAY)
-                edges = cv2.Canny(img_gray, 100, 200)
-                edges_rgb = cv2.cvtColor(edges, cv2.COLOR_GRAY2RGB)
-                
-                # --- Try getting activation map again --- #
-                # This assumes 'get_activation_map' exists on your PyTorch model
-                # and works with the 3-channel input. Might need adjustment.
-                activation_map = None
-                overlay = None
+            file = request.files['file']
+            if file.filename == '':
+                flash('No file selected', 'error')
+                return redirect(request.url)
+            
+            if file and allowed_file(file.filename):
                 try:
-                    if hasattr(model, 'get_activation_map'):
-                        activation_map_raw = model.get_activation_map(img_tensor) # Pass the tensor
-                        # Post-process activation map (resize, colormap)
-                        activation_map_resized = cv2.resize(activation_map_raw, (224, 224))
-                        heatmap_vis = np.uint8(255 * activation_map_resized)
-                        heatmap_vis = cv2.applyColorMap(heatmap_vis, cv2.COLORMAP_JET)
-                        heatmap_vis_rgb = cv2.cvtColor(heatmap_vis, cv2.COLOR_BGR2RGB)
-                        activation_map = heatmap_vis_rgb # Store for output
+                    # Create upload folder if it doesn't exist
+                    if not os.path.exists(app.config['UPLOAD_FOLDER']):
+                        os.makedirs(app.config['UPLOAD_FOLDER'])
                         
-                        # Create overlay
-                        overlay_vis = cv2.addWeighted(cv2.cvtColor(img_display_resized, cv2.COLOR_BGR2RGB), 0.6, heatmap_vis_rgb, 0.4, 0)
-                        overlay = overlay_vis # Store for output
-                    else:
-                        print("Model does not have get_activation_map method.", file=sys.stderr)
-                except Exception as viz_error:
-                     print(f"Error generating activation map: {viz_error}", file=sys.stderr)
-                # --- End Try Activation Map --- #
-                
-                def image_to_base64(img_array_rgb):
-                    if img_array_rgb is None: return None
-                    # Convert RGB (numpy) to BGR for cv2.imencode
-                    img_bgr = cv2.cvtColor(img_array_rgb, cv2.COLOR_RGB2BGR) 
-                    _, buffer = cv2.imencode('.png', img_bgr)
-                    return base64.b64encode(buffer).decode('utf-8')
-                
-                visualizations = {
-                    'original': image_to_base64(cv2.cvtColor(img_display_resized, cv2.COLOR_BGR2RGB)), # Ensure original is RGB for display
-                    'heatmap': image_to_base64(activation_map), 
-                    'overlay': image_to_base64(overlay), 
-                    'edges': image_to_base64(edges_rgb)
-                }
-                # --- End Restore Visualizations --- #
+                    filename = secure_filename(file.filename)
+                    filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+                    file.save(filepath)
+                    
+                    app.logger.info(f"File saved to {filepath}")
+                    
+                    # --- Start analysis code --- #
+                    try:
+                        # --- Preprocessing uses corrected transform --- #
+                        image_pil = Image.open(filepath).convert('RGB') 
+                        img_tensor = transform(image_pil)
+                        img_tensor = img_tensor.unsqueeze(0)
+                        # --- End Preprocessing --- #
 
-                # --- Prepare results dictionary for template --- #
-                results_data = {
-                    'prediction': result,
-                    'confidence': cataract_likelihood, # Return likelihood of cataract
-                    'recommendations': recommendations,
-                    'recommended_hospitals': recommended_hospitals,
-                    'visualizations': visualizations
-                }
+                        # Make prediction
+                        with torch.no_grad():
+                            prediction_tensor = model(img_tensor) 
+                            raw_confidence = float(prediction_tensor[0][0]) # Model's raw output (0..1)
+                            
+                            # Print debug info about confidence levels
+                            app.logger.info(f"Raw confidence value for cataract: {raw_confidence}")
+                            
+                            # Set threshold to 40% (0.4) for cataract detection
+                            cataract_threshold = 0.4
+                            result = "Cataract Detected" if raw_confidence > cataract_threshold else "No Cataract Detected"
+                            app.logger.info(f"Final prediction: {result} (threshold={cataract_threshold})")
+                            
+                            # Store raw confidence - higher means more likely cataract
+                            cataract_likelihood = raw_confidence
+                        
+                        # Save analysis to history - Store the calculated cataract likelihood
+                        try:
+                            analysis = Analysis(
+                                user_id=session['user_id'],
+                                image_path=filename, 
+                                prediction=result,
+                                confidence=cataract_likelihood # Store likelihood of cataract
+                            )
+                            db.session.add(analysis)
+                            db.session.commit()
+                            app.logger.info("Analysis saved to database")
+                        except Exception as db_error:
+                            app.logger.error(f"Database error: {str(db_error)}")
+                            db.session.rollback()
+                            # Continue even if database save fails
+                        
+                        # Get recommendations based on prediction and cataract likelihood
+                        recommendations, recommended_hospitals = get_recommendations(result, cataract_likelihood)
+                        
+                        # --- Rest of visualization code --- #
+                        # ...
+                        # --- End visualization code --- #
+                        
+                        # --- Prepare results dictionary for template --- #
+                        results_data = {
+                            'prediction': result,
+                            'confidence': cataract_likelihood,
+                            'recommendations': recommendations,
+                            'recommended_hospitals': recommended_hospitals,
+                            'visualizations': {} # Initialize empty in case visualizations fail
+                        }
+                        
+                        # Try to generate visualizations, but don't fail if they can't be generated
+                        try:
+                            # Rest of visualization code as before
+                            img_cv_rgb = cv2.cvtColor(np.array(image_pil), cv2.COLOR_RGB2BGR)
+                            img_display_resized = cv2.resize(img_cv_rgb, (224, 224))
+                            
+                            # Edge detection
+                            img_gray = cv2.cvtColor(img_display_resized, cv2.COLOR_BGR2GRAY)
+                            edges = cv2.Canny(img_gray, 100, 200)
+                            edges_rgb = cv2.cvtColor(edges, cv2.COLOR_GRAY2RGB)
+                            
+                            # Activation map
+                            activation_map = None
+                            overlay = None
+                            if hasattr(model, 'get_activation_map'):
+                                activation_map_raw = model.get_activation_map(img_tensor)
+                                activation_map_resized = cv2.resize(activation_map_raw, (224, 224))
+                                heatmap_vis = np.uint8(255 * activation_map_resized)
+                                heatmap_vis = cv2.applyColorMap(heatmap_vis, cv2.COLORMAP_JET)
+                                heatmap_vis_rgb = cv2.cvtColor(heatmap_vis, cv2.COLOR_BGR2RGB)
+                                activation_map = heatmap_vis_rgb
+                                
+                                # Create overlay
+                                overlay_vis = cv2.addWeighted(cv2.cvtColor(img_display_resized, cv2.COLOR_BGR2RGB), 0.6, heatmap_vis_rgb, 0.4, 0)
+                                overlay = overlay_vis
+                            
+                            def image_to_base64(img_array_rgb):
+                                if img_array_rgb is None: return None
+                                img_bgr = cv2.cvtColor(img_array_rgb, cv2.COLOR_RGB2BGR) 
+                                _, buffer = cv2.imencode('.png', img_bgr)
+                                return base64.b64encode(buffer).decode('utf-8')
+                            
+                            visualizations = {
+                                'original': image_to_base64(cv2.cvtColor(img_display_resized, cv2.COLOR_BGR2RGB)),
+                                'heatmap': image_to_base64(activation_map), 
+                                'overlay': image_to_base64(overlay), 
+                                'edges': image_to_base64(edges_rgb)
+                            }
+                            
+                            results_data['visualizations'] = visualizations
+                        except Exception as viz_error:
+                            app.logger.error(f"Visualization error: {str(viz_error)}")
+                            # Continue without visualizations if they fail
+                        
+                        # --- Render HTML template --- #
+                        return render_template('analyze_results.html', results=results_data, active_page='analyze')
+                    
+                    except Exception as analysis_error:
+                        app.logger.error(f"Analysis error: {str(analysis_error)}")
+                        flash(f"Error analyzing image: {str(analysis_error)}", "error")
+                        return redirect(request.url)
                 
-                # --- Render HTML template instead of returning JSON --- #
-                return render_template('analyze_results.html', results=results_data, active_page='analyze') 
-                # --- End Render Template --- #
-                
-            except Exception as e:
-                print(f"Error during analysis: {e}", file=sys.stderr) # Add logging
-                # Return error to the original analyze page if something goes wrong
-                flash(f"An error occurred during analysis: {e}", "error")
-                return redirect(url_for('analyze_image'))
-        
-        # Handle invalid file type by redirecting back with a flash message
-        flash("Invalid file type. Please upload JPG, PNG, or JPEG files.", "error")
-        return redirect(url_for('analyze_image'))
+                except Exception as file_error:
+                    app.logger.error(f"File handling error: {str(file_error)}")
+                    flash(f"Error processing file: {str(file_error)}", "error")
+                    return redirect(request.url)
+            
+            # Handle invalid file type
+            flash("Invalid file type. Please upload JPG, PNG, or JPEG files.", "error")
+            return redirect(request.url)
+            
+        except Exception as e:
+            app.logger.error(f"Unexpected error in analyze: {str(e)}")
+            flash(f"An unexpected error occurred. Please try again.", "error")
+            return redirect(request.url)
     
     # For GET request, just render the upload form
     return render_template('analyze.html', active_page='analyze')
@@ -518,8 +571,23 @@ def create_default_profile_picture():
 
 # Setup function to run initialization tasks
 def setup_app():
-    # Create default profile picture
-    create_default_profile_picture()
+    try:
+        # Ensure upload folder exists
+        if not os.path.exists(app.config['UPLOAD_FOLDER']):
+            try:
+                os.makedirs(app.config['UPLOAD_FOLDER'])
+                app.logger.info(f"Created upload folder: {app.config['UPLOAD_FOLDER']}")
+            except Exception as folder_error:
+                app.logger.error(f"Error creating upload folder: {str(folder_error)}")
+        
+        # Create default profile picture
+        try:
+            create_default_profile_picture()
+            app.logger.info("Default profile picture created or already exists")
+        except Exception as pic_error:
+            app.logger.error(f"Error creating default profile picture: {str(pic_error)}")
+    except Exception as e:
+        app.logger.error(f"Error during app setup: {str(e)}")
 
 @app.before_request
 def check_theme():

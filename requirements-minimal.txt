@@ -1,0 +1,14 @@
+# Core dependencies only - no scientific packages
+Flask==2.0.1
+Flask-SQLAlchemy==2.5.1
+Werkzeug==2.0.1
+Pillow==9.0.0
+gunicorn==20.1.0
+psycopg2-binary==2.9.3
+redis==4.2.0
+requests==2.26.0
+PyYAML==6.0
+
+# Quantum libraries with minimal dependencies
+PennyLane==0.30.0
+qiskit-terra==0.24.0 

@@ -2,13 +2,13 @@ services:
   - type: web
     name: cataract-detection
     env: python
-    buildCommand: pip install --upgrade pip && pip install -r requirements-render.txt --prefer-binary
+    buildCommand: chmod +x install.sh && ./install.sh
     startCommand: gunicorn app:app
     plan: free
     healthCheckPath: /
     envVars:
       - key: PYTHON_VERSION
-        value: 3.8.12
+        value: 3.11.4
       - key: PORT
         value: 10000
       - key: SECRET_KEY
@@ -19,8 +19,6 @@ services:
         fromDatabase:
           name: cataract_db
           property: connectionString
-      - key: PIP_EXTRA_INDEX_URL
-        value: https://download.pytorch.org/whl/cpu
 
   - type: redis
     name: cataraqt-redis

@@ -5,7 +5,7 @@ services:
     buildCommand: chmod +x render-build.sh && ./render-build.sh
     startCommand: gunicorn --worker-tmp-dir /dev/shm --timeout 120 --bind 0.0.0.0:$PORT app:app
     plan: free
-    healthCheckPath: /
+    healthCheckPath: /healthz
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.4

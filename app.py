@@ -1,4 +1,5 @@
 import os
+import logging # Add logging import
 from flask import Flask, request, jsonify, render_template, redirect, url_for, flash, session, send_from_directory
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -15,11 +16,16 @@ import base64
 import sys
 import json
 
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+
 app = Flask(__name__)
+app.logger.info("Flask app initialized")
 
 # --- Define Upload Folder using Absolute Path --- #
 basedir = os.path.abspath(os.path.dirname(__file__))
 app.config['UPLOAD_FOLDER'] = os.path.join(basedir, 'static/uploads')
+app.logger.info(f"Upload folder set to: {app.config['UPLOAD_FOLDER']}")
 # --- End Absolute Path --- #
 
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
@@ -27,21 +33,34 @@ app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', os.urandom(24))  # Use e
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=7)  # Session lifetime
 
 # Database configuration - use PostgreSQL on Render, SQLite locally
+app.logger.info("Configuring database...")
 if os.environ.get('DATABASE_URL'):
     # PostgreSQL database URL from Render
-    app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL')
+    db_uri = os.environ.get('DATABASE_URL')
+    # Fix for Heroku/Render postgres URLs if needed
+    if db_uri.startswith("postgres://"):
+        db_uri = db_uri.replace("postgres://", "postgresql://", 1)
+    app.config['SQLALCHEMY_DATABASE_URI'] = db_uri
+    app.logger.info("Using PostgreSQL database")
 else:
     # SQLite for local development
     app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///users.db'
+    app.logger.info("Using SQLite database")
 
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # --- Ensure upload folder exists --- #
-if not os.path.exists(app.config['UPLOAD_FOLDER']):
-    os.makedirs(app.config['UPLOAD_FOLDER'])
+app.logger.info("Checking upload folder existence...")
+try:
+    if not os.path.exists(app.config['UPLOAD_FOLDER']):
+        os.makedirs(app.config['UPLOAD_FOLDER'])
+        app.logger.info("Upload folder created.")
+except Exception as e:
+    app.logger.error(f"Error creating upload folder: {e}")
 # --- End folder check --- #
 
 db = SQLAlchemy(app)
+app.logger.info("SQLAlchemy initialized")
 
 # Define allowed file extensions
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
@@ -80,17 +99,29 @@ class Analysis(db.Model):
     created_at = db.Column(db.DateTime, server_default=db.func.now())
 
 # Create database tables
-with app.app_context():
-    db.create_all()
+app.logger.info("Creating database tables (within app context)...")
+try:
+    with app.app_context():
+        db.create_all()
+        app.logger.info("Database tables created (or already exist).")
+except Exception as e:
+    app.logger.error(f"Error creating database tables: {e}")
 
 # Initialize model
-model = QuantumEyeDiseaseClassifier()
-checkpoint = torch.load('best_model.pth', map_location=torch.device('cpu'))
-if isinstance(checkpoint, dict) and 'model_state_dict' in checkpoint:
-    model.load_state_dict(checkpoint['model_state_dict'])
-else:
-    model.load_state_dict(checkpoint)
-model.eval()
+app.logger.info("Initializing ML model...")
+try:
+    model = QuantumEyeDiseaseClassifier()
+    model_path = os.path.join(basedir, 'best_model.pth')
+    app.logger.info(f"Attempting to load model from: {model_path}")
+    checkpoint = torch.load(model_path, map_location=torch.device('cpu'))
+    if isinstance(checkpoint, dict) and 'model_state_dict' in checkpoint:
+        model.load_state_dict(checkpoint['model_state_dict'])
+    else:
+        model.load_state_dict(checkpoint)
+    model.eval()
+    app.logger.info("ML model loaded and set to eval mode successfully.")
+except Exception as e:
+    app.logger.error(f"Error loading ML model: {e}")
 
 # --- Corrected PyTorch Transform (Matching Model's Preprocessing) --- #
 transform = transforms.Compose([
@@ -138,9 +169,18 @@ def get_recommendations(prediction, confidence):
 
 @app.route('/')
 def index():
-    if 'user_id' in session:
-        pass
+    # Keep this route simple for health checks
     return render_template('home.html', active_page='index')
+
+@app.route('/healthz') # Add a dedicated health check route
+def healthz():
+    try:
+        # Optional: Check DB connection
+        # db.session.execute('SELECT 1')
+        return "OK", 200
+    except Exception as e:
+        app.logger.error(f"Health check failed: {e}")
+        return "Error", 500
 
 @app.route('/technology-details')
 def technology_details():
@@ -571,38 +611,49 @@ def create_default_profile_picture():
 
 # Setup function to run initialization tasks
 def setup_app():
+    app.logger.info("Running setup_app function...")
     try:
-        # Ensure upload folder exists
+        # Ensure upload folder exists (already checked above, but good to be safe)
         if not os.path.exists(app.config['UPLOAD_FOLDER']):
             try:
                 os.makedirs(app.config['UPLOAD_FOLDER'])
-                app.logger.info(f"Created upload folder: {app.config['UPLOAD_FOLDER']}")
+                app.logger.info(f"Created upload folder in setup_app: {app.config['UPLOAD_FOLDER']}")
             except Exception as folder_error:
-                app.logger.error(f"Error creating upload folder: {str(folder_error)}")
+                app.logger.error(f"Error creating upload folder in setup_app: {str(folder_error)}")
         
         # Create default profile picture
         try:
             create_default_profile_picture()
-            app.logger.info("Default profile picture created or already exists")
+            app.logger.info("Default profile picture check/creation complete in setup_app.")
         except Exception as pic_error:
-            app.logger.error(f"Error creating default profile picture: {str(pic_error)}")
+            app.logger.error(f"Error creating default profile picture in setup_app: {str(pic_error)}")
     except Exception as e:
-        app.logger.error(f"Error during app setup: {str(e)}")
+        app.logger.error(f"Error during setup_app execution: {str(e)}")
+    app.logger.info("setup_app function finished.")
 
 @app.before_request
 def check_theme():
     if 'theme' not in session and 'theme' in request.cookies:
         session['theme'] = request.cookies.get('theme')
 
+# --- Main Execution Block --- #
 if __name__ == '__main__':
-    # REMOVED folder check from here 
-    # if not os.path.exists(app.config['UPLOAD_FOLDER']):
-    #     os.makedirs(app.config['UPLOAD_FOLDER'])
-        
+    # This block is NOT run by Gunicorn, but useful for local dev
+    app.logger.info("Starting Flask development server (if run directly)...")
     with app.app_context():
-        db.create_all()
-        setup_app()  # Run setup tasks
-    
-    # Use environment variable for port, defaulting to 5001 if not set
+        # db.create_all() # Moved table creation outside this block
+        setup_app()  # Run setup tasks for local dev
     port = int(os.environ.get("PORT", 5001))
-    app.run(debug=False, host='0.0.0.0', port=port) 
+    app.run(debug=False, host='0.0.0.0', port=port)
+else:
+    # This block IS relevant when Gunicorn imports the app
+    app.logger.info("Application starting under WSGI server (Gunicorn). Running setup...")
+    try:
+        with app.app_context():
+            # Ensure setup runs when imported by Gunicorn
+            setup_app()
+        app.logger.info("Setup complete under Gunicorn.")
+    except Exception as e:
+        app.logger.error(f"Error during setup under Gunicorn: {e}")
+
+app.logger.info("App module loading complete.") 

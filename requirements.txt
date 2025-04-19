@@ -87,7 +87,7 @@ networkx==3.4.2
 notebook_shim==0.2.4
 numpy==1.24.3
 opencv-python==4.11.0.86
-opencv-python-headless==4.5.3.56 --only-binary=:all:
+opencv-python-headless==4.11.0.86
 opt_einsum==3.4.0
 optree==0.15.0
 overrides==7.7.0

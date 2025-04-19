@@ -27,6 +27,9 @@ echo "=== Installing Scientific Packages ==="
 pip install scipy==1.10.1
 pip install scikit-learn==1.0.2 
 
+echo "=== Installing OpenCV (available version) ==="
+pip install opencv-python-headless==4.11.0.86
+
 echo "=== Installing PyTorch CPU version ==="
 pip install torch==1.13.1+cpu torchvision==0.14.1+cpu -f https://download.pytorch.org/whl/cpu/torch_stable.html
 

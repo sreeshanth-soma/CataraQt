@@ -85,9 +85,9 @@ nbformat==5.10.4
 nest-asyncio==1.6.0
 networkx==3.4.2
 notebook_shim==0.2.4
-numpy==1.21.0
+numpy==1.21.0 --only-binary=numpy
 opencv-python==4.11.0.86
-opencv-python-headless==4.5.3.56
+opencv-python-headless==4.5.3.56 --only-binary=:all:
 opt_einsum==3.4.0
 optree==0.15.0
 overrides==7.7.0
@@ -125,9 +125,8 @@ rfc3986-validator==0.1.1
 rich==14.0.0
 rpds-py==0.24.0
 rustworkx==0.16.0
-scikit-learn==1.0.1
-scipy==1.7.1
-scipy-openblas32==0.3.29.0.0
+scikit-learn==1.0.1 --only-binary=scikit-learn
+scipy==1.7.1 --only-binary=scipy
 Send2Trash==1.8.3
 setuptools==78.1.0
 six==1.17.0
@@ -146,8 +145,8 @@ terminado==0.18.1
 threadpoolctl==3.6.0
 tinycss2==1.4.0
 tomlkit==0.13.2
-torch==1.9.0
-torchvision==0.10.0
+torch==1.9.0 --extra-index-url https://download.pytorch.org/whl/cpu
+torchvision==0.10.0 --extra-index-url https://download.pytorch.org/whl/cpu
 tornado==6.4.2
 tqdm==4.62.3
 traitlets==5.14.3

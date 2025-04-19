@@ -2,7 +2,7 @@ services:
   - type: web
     name: cataract-detection
     env: python
-    buildCommand: pip install -r requirements.txt
+    buildCommand: pip install --upgrade pip && pip install -r requirements-render.txt --prefer-binary
     startCommand: gunicorn app:app
     plan: free
     healthCheckPath: /
@@ -19,6 +19,8 @@ services:
         fromDatabase:
           name: cataract_db
           property: connectionString
+      - key: PIP_EXTRA_INDEX_URL
+        value: https://download.pytorch.org/whl/cpu
 
   - type: redis
     name: cataraqt-redis

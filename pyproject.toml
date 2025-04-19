@@ -1,0 +1,12 @@
+[build-system]
+requires = ["setuptools>=42", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = []  # Empty to avoid auto-discovery
+
+[project]
+name = "cataraqt"
+version = "0.1.0"
+description = "Quantum Eye Disease Classifier"
+requires-python = ">=3.8" 

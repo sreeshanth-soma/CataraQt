@@ -33,8 +33,8 @@ pip install opencv-python-headless==4.11.0.86
 echo "=== Installing PyTorch CPU version (updated) ==="
 pip install torch==2.0.1+cpu torchvision==0.15.2+cpu -f https://download.pytorch.org/whl/cpu/torch_stable.html
 
-echo "=== Installing Flask and web dependencies (updated SQLAlchemy) ==="
-pip install Flask==2.0.1 Flask-SQLAlchemy==3.0.3 SQLAlchemy>=2.0 Werkzeug==2.0.1 Pillow==9.0.0 gunicorn==20.1.0 psycopg2-binary==2.9.3 redis==4.2.0 requests==2.26.0 PyYAML==6.0
+echo "=== Installing Flask and web dependencies (updated Flask/Werkzeug/SQLAlchemy) ==="
+pip install Flask==2.3.3 Flask-SQLAlchemy==3.0.3 SQLAlchemy>=2.0 Werkzeug==2.3.7 Pillow==9.0.0 gunicorn==20.1.0 psycopg2-binary==2.9.3 redis==4.2.0 requests==2.26.0 PyYAML==6.0
 
 echo "=== Installing Quantum libraries ==="
 pip install qiskit==0.42.0 

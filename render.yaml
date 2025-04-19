@@ -3,14 +3,12 @@ services:
     name: cataract-detection
     env: python
     buildCommand: chmod +x render-build.sh && ./render-build.sh
-    startCommand: gunicorn app:app
+    startCommand: gunicorn --worker-tmp-dir /dev/shm --timeout 120 --bind 0.0.0.0:$PORT app:app
     plan: free
     healthCheckPath: /
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.4
-      - key: PORT
-        value: 10000
       - key: SECRET_KEY
         generateValue: true
       - key: FLASK_ENV

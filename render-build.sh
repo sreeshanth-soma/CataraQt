@@ -25,7 +25,7 @@ pip install numpy==1.24.3
 
 echo "=== Installing Scientific Packages ==="
 pip install scipy==1.10.1
-pip install scikit-learn==1.0.2 
+pip install scikit-learn==1.3.0
 
 echo "=== Installing OpenCV (available version) ==="
 pip install opencv-python-headless==4.11.0.86

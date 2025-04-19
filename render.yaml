@@ -2,7 +2,7 @@ services:
   - type: web
     name: cataract-detection
     env: python
-    buildCommand: chmod +x install.sh && ./install.sh
+    buildCommand: chmod +x render-build.sh && ./render-build.sh
     startCommand: gunicorn app:app
     plan: free
     healthCheckPath: /

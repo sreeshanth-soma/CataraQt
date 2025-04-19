@@ -1,0 +1,16 @@
+# Ignore original requirements files
+requirements.txt
+requirements-render.txt
+requirements-minimal.txt
+install.sh
+
+# Ignore development files
+*.ipynb
+/venv*
+.vscode/
+.idea/
+__pycache__/
+*.pyc
+
+# Only use our custom build script
+# render-build.sh is explicitly allowed 

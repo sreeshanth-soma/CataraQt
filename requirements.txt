@@ -86,7 +86,6 @@ nest-asyncio==1.6.0
 networkx==3.4.2
 notebook_shim==0.2.4
 numpy==1.24.3
-opencv-python==4.11.0.86
 opencv-python-headless==4.11.0.86
 opt_einsum==3.4.0
 optree==0.15.0
@@ -145,8 +144,8 @@ terminado==0.18.1
 threadpoolctl==3.6.0
 tinycss2==1.4.0
 tomlkit==0.13.2
-torch==1.13.1+cpu --extra-index-url https://download.pytorch.org/whl/cpu
-torchvision==0.14.1+cpu --extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.0.1+cpu --extra-index-url https://download.pytorch.org/whl/cpu
+torchvision==0.15.2+cpu --extra-index-url https://download.pytorch.org/whl/cpu
 tornado==6.4.2
 tqdm==4.62.3
 traitlets==5.14.3

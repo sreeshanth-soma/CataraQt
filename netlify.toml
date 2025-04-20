@@ -1,11 +1,22 @@
 [build]
-  command = "pip install -r requirements.txt"
-  publish = "static"
+  command = "pip install -r requirements.txt && flask db upgrade && gunicorn --bind 0.0.0.0:$PORT app:app"
+  publish = "static"  # Your static files directory
+  functions = "netlify/functions"  # For serverless functions if needed
 
 [build.environment]
   PYTHON_VERSION = "3.11"
+  FLASK_APP = "app.py"
+  FLASK_ENV = "production"
+  PORT = "8080"  # Required for Netlify to route traffic properly
 
+# Required for Flask routes to work
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/:splat"
+  status = 200
+
+# Catch-all for frontend routes
 [[redirects]]
   from = "/*"
   to = "/index.html"
-  status = 200 
+  status = 200

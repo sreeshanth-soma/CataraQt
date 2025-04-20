@@ -110,18 +110,19 @@ except Exception as e:
 # Initialize model
 app.logger.info("Initializing ML model...")
 try:
-model = QuantumEyeDiseaseClassifier()
+    model = QuantumEyeDiseaseClassifier()
     model_path = os.path.join(basedir, 'best_model.pth')
     app.logger.info(f"Attempting to load model from: {model_path}")
     checkpoint = torch.load(model_path, map_location=torch.device('cpu'))
-if isinstance(checkpoint, dict) and 'model_state_dict' in checkpoint:
-    model.load_state_dict(checkpoint['model_state_dict'])
-else:
-    model.load_state_dict(checkpoint)
-model.eval()
+    if isinstance(checkpoint, dict) and 'model_state_dict' in checkpoint:
+        model.load_state_dict(checkpoint['model_state_dict'])
+    else:
+        model.load_state_dict(checkpoint)
+    model.eval()
     app.logger.info("ML model loaded and set to eval mode successfully.")
 except Exception as e:
     app.logger.error(f"Error loading ML model: {e}")
+    model = None
 
 # --- Corrected PyTorch Transform (Matching Model's Preprocessing) --- #
 transform = transforms.Compose([
@@ -188,49 +189,53 @@ def technology_details():
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    try:
-        if 'user_id' in session:
-            return redirect(url_for('dashboard'))
-            
+    # Check if already logged in first
+    if 'user_id' in session:
+        return redirect(url_for('dashboard'))
+
     if request.method == 'POST':
-            try:
-        username = request.form.get('username')
-        password = request.form.get('password')
-        
-                if not username or not password:
-                    flash('Please provide both username and password', 'error')
-                    return render_template('auth/login.html', active_page='login')
-                
-                user = User.query.filter_by(username=username).first()
-                
-                if user and check_password_hash(user.password, password):
-                    try:
-                        # Set up permanent session
-                        session.permanent = True
-                        session['user_id'] = user.id
-                        session['username'] = user.username
-                        session['user_name'] = user.name
-                        if user.profile_picture:
-                            session['user_profile_picture'] = user.profile_picture
-                        
-                        app.logger.info(f"User {username} logged in successfully")
-            flash('Logged in successfully!', 'success')
-            return redirect(url_for('dashboard'))
-                    except Exception as session_error:
-                        app.logger.error(f"Session error during login: {str(session_error)}")
-                        flash('Session error during login. Please try again.', 'error')
-        else:
-                    app.logger.warning(f"Failed login attempt for user: {username}")
-            flash('Invalid username or password', 'error')
-            except Exception as form_error:
-                app.logger.error(f"Form processing error: {str(form_error)}")
-                flash('Error processing login. Please try again.', 'error')
-        
-        return render_template('auth/login.html', active_page='login')
-    except Exception as e:
-        app.logger.error(f"Unexpected error in login route: {str(e)}")
-        flash('An unexpected error occurred. Please try again.', 'error')
-        return render_template('auth/login.html', active_page='login')
+        try: # This try block will handle form processing errors
+            username = request.form.get('username')
+            password = request.form.get('password')
+
+            if not username or not password:
+                flash('Please provide both username and password', 'error')
+                return render_template('auth/login.html', active_page='login')
+
+            user = User.query.filter_by(username=username).first()
+
+            if user and check_password_hash(user.password, password):
+                try: # Inner try for session logic
+                    # Set up permanent session
+                    session.permanent = True
+                    session['user_id'] = user.id
+                    session['username'] = user.username
+                    session['user_name'] = user.name
+                    if user.profile_picture:
+                        session['user_profile_picture'] = user.profile_picture
+
+                    app.logger.info(f"User {username} logged in successfully")
+                    flash('Logged in successfully!', 'success')
+                    return redirect(url_for('dashboard')) # Indent correctly
+                except Exception as session_error: # Except for inner try
+                    app.logger.error(f"Session error during login: {str(session_error)}")
+                    flash('Session error during login. Please try again.', 'error')
+                    # Fall through to render login page again
+            else:
+                app.logger.warning(f"Failed login attempt for user: {username}")
+                flash('Invalid username or password', 'error')
+                # Fall through to render login page again
+
+        except Exception as form_error: # Except for outer try
+            app.logger.error(f"Form processing error: {str(form_error)}")
+            flash('Error processing login. Please try again.', 'error')
+            # Fall through to render login page again
+
+        # If any error occurred or login failed, render the login page again
+        return render_template('auth/login.html', active_page='login') # Unindent to be outside the 'if user...' block but inside 'if POST'
+
+    # For GET requests
+    return render_template('auth/login.html', active_page='login') # This should be the final return for GET
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
@@ -299,151 +304,156 @@ def dashboard():
 @login_required
 def analyze_image():
     if request.method == 'POST':
-        try:
-    if 'file' not in request.files:
+        try: # Outer try for the whole POST request handling
+            if 'file' not in request.files: # Indent this block
                 flash('No file uploaded', 'error')
                 return redirect(request.url)
-    
-    file = request.files['file']
-    if file.filename == '':
+
+            file = request.files['file']
+            if file.filename == '': # Indent this block
                 flash('No file selected', 'error')
                 return redirect(request.url)
-            
-            if file and allowed_file(file.filename):
-                try:
+
+            if file and allowed_file(file.filename): # Indent this block
+                try: # Inner try for file saving and analysis
                     # Create upload folder if it doesn't exist
                     if not os.path.exists(app.config['UPLOAD_FOLDER']):
                         os.makedirs(app.config['UPLOAD_FOLDER'])
-                        
-        filename = secure_filename(file.filename)
-        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-        file.save(filepath)
-        
-                    app.logger.info(f"File saved to {filepath}")
-                    
+
+                    filename = secure_filename(file.filename) # Indent correctly
+                    filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename) # Indent correctly
+                    file.save(filepath) # Indent correctly
+
+                    app.logger.info(f"File saved to {filepath}") # Indent correctly
+
                     # --- Start analysis code --- #
-                    try:
+                    try: # Innermost try for the actual ML analysis and DB save
                         # --- Preprocessing uses corrected transform --- #
-                        image_pil = Image.open(filepath).convert('RGB') 
+                        image_pil = Image.open(filepath).convert('RGB')
                         img_tensor = transform(image_pil)
                         img_tensor = img_tensor.unsqueeze(0)
                         # --- End Preprocessing --- #
-            
-            # Make prediction
-            with torch.no_grad():
-                            prediction_tensor = model(img_tensor) 
+
+                        # Make prediction
+                        if model is None: # Check if model loaded successfully
+                             raise ValueError("Model not loaded, cannot perform analysis.")
+
+                        with torch.no_grad(): # Indent correctly
+                            prediction_tensor = model(img_tensor)
                             raw_confidence = float(prediction_tensor[0][0]) # Model's raw output (0..1)
-                            
+
                             # Print debug info about confidence levels
                             app.logger.info(f"Raw confidence value for cataract: {raw_confidence}")
-                            
+
                             # Set threshold to 40% (0.4) for cataract detection
                             cataract_threshold = 0.4
                             result = "Cataract Detected" if raw_confidence > cataract_threshold else "No Cataract Detected"
                             app.logger.info(f"Final prediction: {result} (threshold={cataract_threshold})")
-                            
+
                             # Store raw confidence - higher means more likely cataract
                             cataract_likelihood = raw_confidence
-                        
+
                         # Save analysis to history - Store the calculated cataract likelihood
-                        try:
+                        try: # Try for database save
                             analysis = Analysis(
                                 user_id=session['user_id'],
-                                image_path=filename, 
+                                image_path=filename,
                                 prediction=result,
                                 confidence=cataract_likelihood # Store likelihood of cataract
                             )
                             db.session.add(analysis)
                             db.session.commit()
                             app.logger.info("Analysis saved to database")
-                        except Exception as db_error:
+                        except Exception as db_error: # Except for database save
                             app.logger.error(f"Database error: {str(db_error)}")
                             db.session.rollback()
-                            # Continue even if database save fails
-                        
+                            # Continue even if database save fails, but maybe flash a warning?
+                            flash('Analysis complete, but failed to save to history.', 'warning')
+
                         # Get recommendations based on prediction and cataract likelihood
-                        recommendations, recommended_hospitals = get_recommendations(result, cataract_likelihood)
-                        
+                        recommendations, recommended_hospitals = get_recommendations(result, cataract_likelihood) # Indent correctly
+
                         # --- Rest of visualization code --- #
                         # ...
                         # --- End visualization code --- #
-                        
+
                         # --- Prepare results dictionary for template --- #
-                        results_data = {
+                        results_data = { # Indent correctly
                             'prediction': result,
                             'confidence': cataract_likelihood,
                             'recommendations': recommendations,
                             'recommended_hospitals': recommended_hospitals,
                             'visualizations': {} # Initialize empty in case visualizations fail
                         }
-                        
+
                         # Try to generate visualizations, but don't fail if they can't be generated
-                        try:
+                        try: # Try for visualizations
                             # Rest of visualization code as before
                             img_cv_rgb = cv2.cvtColor(np.array(image_pil), cv2.COLOR_RGB2BGR)
                             img_display_resized = cv2.resize(img_cv_rgb, (224, 224))
-                            
+
                             # Edge detection
                             img_gray = cv2.cvtColor(img_display_resized, cv2.COLOR_BGR2GRAY)
                             edges = cv2.Canny(img_gray, 100, 200)
                             edges_rgb = cv2.cvtColor(edges, cv2.COLOR_GRAY2RGB)
-                            
+
                             # Activation map
                             activation_map = None
                             overlay = None
-                            if hasattr(model, 'get_activation_map'):
+                            # Check if model has the method AND is not None
+                            if model is not None and hasattr(model, 'get_activation_map'):
                                 activation_map_raw = model.get_activation_map(img_tensor)
                                 activation_map_resized = cv2.resize(activation_map_raw, (224, 224))
                                 heatmap_vis = np.uint8(255 * activation_map_resized)
                                 heatmap_vis = cv2.applyColorMap(heatmap_vis, cv2.COLORMAP_JET)
                                 heatmap_vis_rgb = cv2.cvtColor(heatmap_vis, cv2.COLOR_BGR2RGB)
                                 activation_map = heatmap_vis_rgb
-                                
+
                                 # Create overlay
                                 overlay_vis = cv2.addWeighted(cv2.cvtColor(img_display_resized, cv2.COLOR_BGR2RGB), 0.6, heatmap_vis_rgb, 0.4, 0)
                                 overlay = overlay_vis
-                            
+
                             def image_to_base64(img_array_rgb):
                                 if img_array_rgb is None: return None
-                                img_bgr = cv2.cvtColor(img_array_rgb, cv2.COLOR_RGB2BGR) 
+                                img_bgr = cv2.cvtColor(img_array_rgb, cv2.COLOR_RGB2BGR)
                                 _, buffer = cv2.imencode('.png', img_bgr)
                                 return base64.b64encode(buffer).decode('utf-8')
-                            
+
                             visualizations = {
                                 'original': image_to_base64(cv2.cvtColor(img_display_resized, cv2.COLOR_BGR2RGB)),
-                                'heatmap': image_to_base64(activation_map), 
-                                'overlay': image_to_base64(overlay), 
+                                'heatmap': image_to_base64(activation_map),
+                                'overlay': image_to_base64(overlay),
                                 'edges': image_to_base64(edges_rgb)
                             }
-                            
+
                             results_data['visualizations'] = visualizations
-                        except Exception as viz_error:
+                        except Exception as viz_error: # Except for visualizations
                             app.logger.error(f"Visualization error: {str(viz_error)}")
                             # Continue without visualizations if they fail
-                        
+
                         # --- Render HTML template --- #
                         return render_template('analyze_results.html', results=results_data, active_page='analyze')
-                    
-                    except Exception as analysis_error:
+
+                    except Exception as analysis_error: # Except for ML analysis/DB save
                         app.logger.error(f"Analysis error: {str(analysis_error)}")
                         flash(f"Error analyzing image: {str(analysis_error)}", "error")
-                        return redirect(request.url)
-                
-                except Exception as file_error:
+                        return redirect(request.url) # Redirect back to upload page on analysis error
+
+                except Exception as file_error: # Except for file saving/analysis (inner try)
                     app.logger.error(f"File handling error: {str(file_error)}")
                     flash(f"Error processing file: {str(file_error)}", "error")
-                    return redirect(request.url)
-            
-            # Handle invalid file type
-            flash("Invalid file type. Please upload JPG, PNG, or JPEG files.", "error")
-            return redirect(request.url)
-            
-        except Exception as e:
-            app.logger.error(f"Unexpected error in analyze: {str(e)}")
+                    return redirect(request.url) # Redirect back to upload page on file error
+            else:
+                 # Handle invalid file type (this block was indented incorrectly before)
+                 flash("Invalid file type. Please upload JPG, PNG, or JPEG files.", "error")
+                 return redirect(request.url)
+
+        except Exception as e: # Except for the whole POST request (outer try)
+            app.logger.error(f"Unexpected error in analyze POST: {str(e)}")
             flash(f"An unexpected error occurred. Please try again.", "error")
-            return redirect(request.url)
-    
-    # For GET request, just render the upload form
+            return redirect(request.url) # Redirect back to upload page on general error
+
+    # For GET request, just render the upload form (This line was incorrectly indented before)
     return render_template('analyze.html', active_page='analyze')
 
 @app.route('/history')

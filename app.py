@@ -110,15 +110,15 @@ except Exception as e:
 # Initialize model
 app.logger.info("Initializing ML model...")
 try:
-    model = QuantumEyeDiseaseClassifier()
+model = QuantumEyeDiseaseClassifier()
     model_path = os.path.join(basedir, 'best_model.pth')
     app.logger.info(f"Attempting to load model from: {model_path}")
     checkpoint = torch.load(model_path, map_location=torch.device('cpu'))
-    if isinstance(checkpoint, dict) and 'model_state_dict' in checkpoint:
-        model.load_state_dict(checkpoint['model_state_dict'])
-    else:
-        model.load_state_dict(checkpoint)
-    model.eval()
+if isinstance(checkpoint, dict) and 'model_state_dict' in checkpoint:
+    model.load_state_dict(checkpoint['model_state_dict'])
+else:
+    model.load_state_dict(checkpoint)
+model.eval()
     app.logger.info("ML model loaded and set to eval mode successfully.")
 except Exception as e:
     app.logger.error(f"Error loading ML model: {e}")
@@ -192,11 +192,11 @@ def login():
         if 'user_id' in session:
             return redirect(url_for('dashboard'))
             
-        if request.method == 'POST':
+    if request.method == 'POST':
             try:
-                username = request.form.get('username')
-                password = request.form.get('password')
-                
+        username = request.form.get('username')
+        password = request.form.get('password')
+        
                 if not username or not password:
                     flash('Please provide both username and password', 'error')
                     return render_template('auth/login.html', active_page='login')
@@ -214,14 +214,14 @@ def login():
                             session['user_profile_picture'] = user.profile_picture
                         
                         app.logger.info(f"User {username} logged in successfully")
-                        flash('Logged in successfully!', 'success')
-                        return redirect(url_for('dashboard'))
+            flash('Logged in successfully!', 'success')
+            return redirect(url_for('dashboard'))
                     except Exception as session_error:
                         app.logger.error(f"Session error during login: {str(session_error)}")
                         flash('Session error during login. Please try again.', 'error')
-                else:
+        else:
                     app.logger.warning(f"Failed login attempt for user: {username}")
-                    flash('Invalid username or password', 'error')
+            flash('Invalid username or password', 'error')
             except Exception as form_error:
                 app.logger.error(f"Form processing error: {str(form_error)}")
                 flash('Error processing login. Please try again.', 'error')
@@ -300,12 +300,12 @@ def dashboard():
 def analyze_image():
     if request.method == 'POST':
         try:
-            if 'file' not in request.files:
+    if 'file' not in request.files:
                 flash('No file uploaded', 'error')
                 return redirect(request.url)
-            
-            file = request.files['file']
-            if file.filename == '':
+    
+    file = request.files['file']
+    if file.filename == '':
                 flash('No file selected', 'error')
                 return redirect(request.url)
             
@@ -315,10 +315,10 @@ def analyze_image():
                     if not os.path.exists(app.config['UPLOAD_FOLDER']):
                         os.makedirs(app.config['UPLOAD_FOLDER'])
                         
-                    filename = secure_filename(file.filename)
-                    filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-                    file.save(filepath)
-                    
+        filename = secure_filename(file.filename)
+        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        file.save(filepath)
+        
                     app.logger.info(f"File saved to {filepath}")
                     
                     # --- Start analysis code --- #
@@ -328,9 +328,9 @@ def analyze_image():
                         img_tensor = transform(image_pil)
                         img_tensor = img_tensor.unsqueeze(0)
                         # --- End Preprocessing --- #
-
-                        # Make prediction
-                        with torch.no_grad():
+            
+            # Make prediction
+            with torch.no_grad():
                             prediction_tensor = model(img_tensor) 
                             raw_confidence = float(prediction_tensor[0][0]) # Model's raw output (0..1)
                             
@@ -636,24 +636,13 @@ def check_theme():
     if 'theme' not in session and 'theme' in request.cookies:
         session['theme'] = request.cookies.get('theme')
 
-# --- Main Execution Block --- #
-if __name__ == '__main__':
-    # This block is NOT run by Gunicorn, but useful for local dev
-    app.logger.info("Starting Flask development server (if run directly)...")
-    with app.app_context():
-        # db.create_all() # Moved table creation outside this block
-        setup_app()  # Run setup tasks for local dev
-    port = int(os.environ.get("PORT", 5001))
-    app.run(debug=False, host='0.0.0.0', port=port)
-else:
-    # This block IS relevant when Gunicorn imports the app
-    app.logger.info("Application starting under WSGI server (Gunicorn). Running setup...")
-    try:
-        with app.app_context():
-            # Ensure setup runs when imported by Gunicorn
-            setup_app()
-        app.logger.info("Setup complete under Gunicorn.")
-    except Exception as e:
-        app.logger.error(f"Error during setup under Gunicorn: {e}")
+# Comment out the development server run command for deployment
+# if __name__ == '__main__':
+#     # Ensure upload folder exists (already moved higher up)
+#     # Initialize database if it doesn't exist
+#     with app.app_context():
+#         db.create_all()
+#         
+#     app.run(debug=True, host='0.0.0.0', port=5001) 
 
 app.logger.info("App module loading complete.") 

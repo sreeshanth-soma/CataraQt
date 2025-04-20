@@ -110,15 +110,15 @@ except Exception as e:
 # Initialize model
 app.logger.info("Initializing ML model...")
 try:
-model = QuantumEyeDiseaseClassifier()
+    model = QuantumEyeDiseaseClassifier()
     model_path = os.path.join(basedir, 'best_model.pth')
     app.logger.info(f"Attempting to load model from: {model_path}")
     checkpoint = torch.load(model_path, map_location=torch.device('cpu'))
-if isinstance(checkpoint, dict) and 'model_state_dict' in checkpoint:
-    model.load_state_dict(checkpoint['model_state_dict'])
-else:
-    model.load_state_dict(checkpoint)
-model.eval()
+    if isinstance(checkpoint, dict) and 'model_state_dict' in checkpoint:
+        model.load_state_dict(checkpoint['model_state_dict'])
+    else:
+        model.load_state_dict(checkpoint)
+    model.eval()
     app.logger.info("ML model loaded and set to eval mode successfully.")
 except Exception as e:
     app.logger.error(f"Error loading ML model: {e}")
@@ -195,9 +195,9 @@ def login():
 
     if request.method == 'POST':
         try: # This try block will handle form processing errors
-        username = request.form.get('username')
-        password = request.form.get('password')
-        
+            username = request.form.get('username')
+            password = request.form.get('password')
+            
             if not username or not password:
                 flash('Please provide both username and password', 'error')
                 return render_template('auth/login.html', active_page='login')
@@ -215,15 +215,15 @@ def login():
                         session['user_profile_picture'] = user.profile_picture
 
                     app.logger.info(f"User {username} logged in successfully")
-            flash('Logged in successfully!', 'success')
-                    return redirect(url_for('dashboard')) # Indent correctly
+                    flash('Logged in successfully!', 'success')
+                    return redirect(url_for('dashboard'))
                 except Exception as session_error: # Except for inner try
                     app.logger.error(f"Session error during login: {str(session_error)}")
                     flash('Session error during login. Please try again.', 'error')
                     # Fall through to render login page again
-        else:
+            else:
                 app.logger.warning(f"Failed login attempt for user: {username}")
-            flash('Invalid username or password', 'error')
+                flash('Invalid username or password', 'error')
                 # Fall through to render login page again
 
         except Exception as form_error: # Except for outer try
@@ -309,7 +309,7 @@ def analyze_image():
                 flash('No file uploaded', 'error')
                 return redirect(request.url)
     
-    file = request.files['file']
+            file = request.files['file']
             if file.filename == '': # Indent this block
                 flash('No file selected', 'error')
                 return redirect(request.url)
@@ -518,8 +518,8 @@ def edit_profile():
             file = request.files['profile_picture']
             if file and file.filename != '' and allowed_file(file.filename):
                 filename = secure_filename(f"profile_{user.id}_{file.filename}")
-        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-        file.save(filepath)
+                filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+                file.save(filepath)
                 
                 # Delete previous profile picture if it's not the default
                 if user.profile_picture and user.profile_picture != 'default_profile.png':
@@ -605,7 +605,7 @@ def set_theme():
             return response
             
         return jsonify({'success': False, 'error': 'Invalid theme'}), 400
-        except Exception as e:
+    except Exception as e:
         app.logger.error(f"Theme setting error: {str(e)}")
         return jsonify({'success': False, 'error': str(e)}), 500
 

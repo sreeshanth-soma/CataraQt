@@ -104,10 +104,6 @@ CataraQt/
 
 Contributions are welcome! Please feel free to submit a Pull Request.
 
-## 📝 License
-
-CataraQt is available under [Your chosen license]
-
 ## 📧 Contact
 
 For questions or feedback about CataraQt, please [open an issue](https://github.com/sreeshanth-soma/CataraQt/issues) on the GitHub repository.

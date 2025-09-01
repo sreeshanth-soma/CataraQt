@@ -110,4 +110,3 @@ For questions or feedback about CataraQt, please [open an issue](https://github.
 
 ---
 
-_Note: This project was developed for the Womanium Quantum Hackathon/Competition and demonstrates the potential applications of quantum computing in healthcare._
